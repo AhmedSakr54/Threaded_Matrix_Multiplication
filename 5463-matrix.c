@@ -20,7 +20,7 @@ void print_matrix(int** array, int n, int m) {
 }
 
 int ** allocate_matrix(int n, int m) {
-    int i,j;
+    int i, j;
     int ** returned_matrix = (int **) malloc(n * sizeof(int *));
     for (i = 0; i < n; i++) {
         returned_matrix[i] = (int *) malloc(m * sizeof(int));
@@ -50,8 +50,8 @@ int main() {
     fp = fopen("input-matrix.txt", "r");
     int **matrix1 = read_matrix_from_file(fp, &row1, &col1);
     int **matrix2 = read_matrix_from_file(fp, &row2, &col2);
-    print_matrix(matrix1, row1, col1);
-    print_matrix(matrix2, row2, col2);
+    fclose(fp);
+
 
     // int num_threads = row * col;
     // pthread_t threads[num_threads];
