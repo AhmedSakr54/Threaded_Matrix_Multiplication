@@ -9,6 +9,15 @@ typedef struct Matrix {
     int col;
 }Matrix;
 
+void destory_matrix(Matrix matrix) {
+    int i;
+    for (i = 0; i < matrix.row; i++) {
+        free(matrix.array[i]);
+    }
+    free(matrix.array);
+}
+
+
 typedef struct Thread_data {
     int * matrix_row_elements;
     int * matrix_col_elements;
@@ -65,7 +74,7 @@ Matrix read_matrix_from_file(FILE *fp) {
 
 void write_to_matrix_file(Matrix matrix, float time, int num) {
     FILE *fp;
-    fp = fopen("output-matrix.txt", "a+");
+    fp = fopen("output-matrix.txt", "w");
     int i, j;
     for (i = 0; i < matrix.row; i++) {
         for (j = 0; j < matrix.col; j++) {
@@ -92,7 +101,7 @@ Matrix thread_per_output_element_matmul(Matrix matrix1, Matrix matrix2) {
     threads = (pthread_t *) malloc(num_threads * sizeof(pthread_t));
 
     int count = 0;
-    Thread_data data[num_threads];
+    Thread_data *data = (Thread_data *) malloc(num_threads * sizeof(Thread_data));
     int i, j, k;
     for (i = 0; i < mult_matrix.row; i++) {
         for (j = 0; j < mult_matrix.col; j++) {
@@ -119,8 +128,11 @@ Matrix thread_per_output_element_matmul(Matrix matrix1, Matrix matrix2) {
             mult_matrix.array[i][j] = *temp;
         }
     }
+    free(threads);
+    free(data);
     return mult_matrix;
 }
+
 
 int main() {
 
@@ -140,6 +152,6 @@ int main() {
     print_matrix(matrix3);
     float total_time = (float)(end_t - start_t) / CLOCKS_PER_SEC * 1000;
     write_to_matrix_file(matrix3, total_time, 1);
-
+    destory_matrix(matrix3);
     return 0;
 }
