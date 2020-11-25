@@ -17,12 +17,25 @@ void destory_matrix(Matrix matrix) {
     free(matrix.array);
 }
 
-
 typedef struct Thread_data {
     int * matrix_row_elements;
     int * matrix_col_elements;
     int num_of_multiplications;
 }Thread_data;
+
+typedef struct Theard_whole_row_data {
+    int * array1_row_elements;
+    int ** array2;
+    int num_rows;
+    int num_cols;
+}Theard_whole_row_data;
+
+void check_dimensions(int row, int col) {
+    if (row != col) {
+        printf("Inconsistent dimensions of the matrices\n");
+        exit(1);
+    }
+}
 
 void *mult_to_get_one_output_element(void *thread_arg) {
     Thread_data *data;
@@ -37,6 +50,21 @@ void *mult_to_get_one_output_element(void *thread_arg) {
 
     *returned_resultant = resultant;
     pthread_exit(returned_resultant);
+}
+
+void *mult_to_get_row_output_elements(void *thread_arg) {
+    Theard_whole_row_data *data;
+    data = (Theard_whole_row_data *) thread_arg;
+
+    int * row_results = (int *) malloc(data->num_cols*sizeof(int));
+    int i, j;
+    for (i = 0; i < data->num_rows; i++) {
+        row_results[i] = 0;
+        for (j = 0; j < data->num_cols; j++) {
+            row_results[i] += data->array1_row_elements[j] * data->array2[j][i]; 
+        }
+    }
+    pthread_exit(row_results);
 }
 
 void print_matrix(Matrix mat) {
@@ -72,9 +100,7 @@ Matrix read_matrix_from_file(FILE *fp) {
     return mat;
 }
 
-void write_to_matrix_file(Matrix matrix, float time, int num) {
-    FILE *fp;
-    fp = fopen("output-matrix.txt", "w");
+void write_to_matrix_file(Matrix matrix, float time, int num, FILE * fp) {
     int i, j;
     for (i = 0; i < matrix.row; i++) {
         for (j = 0; j < matrix.col; j++) {
@@ -82,20 +108,21 @@ void write_to_matrix_file(Matrix matrix, float time, int num) {
         }
         fprintf(fp, "\n");
     }
-    fprintf(fp, "END%d\t %f ms", num, time);
-    fclose(fp);
+    fprintf(fp, "END%d\t %f ms\n", num, time);
 }
 
-Matrix thread_per_output_element_matmul(Matrix matrix1, Matrix matrix2) {
-    if (matrix1.col != matrix2.row) {
-        printf("Inconsistent dimensions of the matrices\n");
-        exit(1);
-    }
+Matrix initialize_mult_matrix(Matrix matrix1, Matrix matrix2) {
     Matrix mult_matrix;
     mult_matrix.row = matrix1.row;
     mult_matrix.col = matrix2.col;
     mult_matrix.array = allocate_Matrix_array(mult_matrix.row, mult_matrix.col);
-    
+    return mult_matrix;
+}
+
+Matrix thread_per_output_element_matmul(Matrix matrix1, Matrix matrix2) {
+    check_dimensions(matrix1.col, matrix2.row);
+    Matrix mult_matrix = initialize_mult_matrix(matrix1, matrix2);
+
     int num_threads = mult_matrix.row * mult_matrix.col;
     pthread_t *threads;
     threads = (pthread_t *) malloc(num_threads * sizeof(pthread_t));
@@ -133,6 +160,43 @@ Matrix thread_per_output_element_matmul(Matrix matrix1, Matrix matrix2) {
     return mult_matrix;
 }
 
+Matrix thread_pre_output_row_matmul(Matrix matrix1, Matrix matrix2) {
+    check_dimensions(matrix1.col, matrix2.row);
+    Matrix mult_matrix = initialize_mult_matrix(matrix1, matrix2);
+
+    int num_threads = mult_matrix.row;
+    pthread_t *threads;
+    threads = (pthread_t *) malloc(num_threads * sizeof(pthread_t));
+
+    int count = 0;
+    Theard_whole_row_data *data = (Theard_whole_row_data *) malloc(num_threads * sizeof(Theard_whole_row_data));
+    int i, j, k;
+    for (i = 0; i < mult_matrix.row; i++) {
+        data[count].array2 = matrix2.array;
+
+        data[count].array1_row_elements = (int *) malloc(mult_matrix.row*sizeof(int));
+        data[count].num_rows = matrix2.col;
+        data[count].num_cols = matrix1.col;
+
+        for (k = 0; k < matrix1.col; k++)  
+            data[count].array1_row_elements[k] = matrix1.array[i][k];
+    
+        pthread_create(&threads[count], NULL, mult_to_get_row_output_elements, (void*) &data[count]);
+        count++;
+    }
+    count = 0;
+
+    for (i = 0; i < mult_matrix.row; i++) {
+        void *thread_ret_val;
+        pthread_join(threads[count++], &thread_ret_val);
+        int * temp = (int *) thread_ret_val;
+        mult_matrix.array[i] = temp;
+    }
+
+    free(threads);
+    free(data);
+    return mult_matrix;
+}
 
 int main() {
 
@@ -144,14 +208,23 @@ int main() {
     print_matrix(matrix1);
     print_matrix(matrix2);
 
+    FILE *fp1;
+    fp1 = fopen("output-matrix.txt", "w");
     clock_t start_t, end_t;
     start_t = clock();
     Matrix matrix3 = thread_per_output_element_matmul(matrix1, matrix2);
     end_t = clock();
-
     print_matrix(matrix3);
     float total_time = (float)(end_t - start_t) / CLOCKS_PER_SEC * 1000;
-    write_to_matrix_file(matrix3, total_time, 1);
+    write_to_matrix_file(matrix3, total_time, 1, fp1);
     destory_matrix(matrix3);
+    start_t = clock();
+    Matrix matrix4 = thread_pre_output_row_matmul(matrix1, matrix2);
+    end_t = clock();
+    total_time = (float)(end_t - start_t) / CLOCKS_PER_SEC * 1000;
+    print_matrix(matrix4);
+    write_to_matrix_file(matrix4, total_time, 2, fp1);
+    destory_matrix(matrix4);
+    fclose(fp1);
     return 0;
 }
