@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
+#include <time.h>
 
 typedef struct Matrix {
     int ** array;
@@ -8,10 +9,25 @@ typedef struct Matrix {
     int col;
 }Matrix;
 
-void *mult_two_numbers(void *thread_arg) {
-    int * matrix_nums = (int *) thread_arg;
-    printf("%d\n" ,matrix_nums[0]*matrix_nums[1]);
-    pthread_exit(NULL);
+typedef struct Thread_data {
+    int * matrix_row_elements;
+    int * matrix_col_elements;
+    int num_of_multiplications;
+}Thread_data;
+
+void *mult_to_get_one_output_element(void *thread_arg) {
+    Thread_data *data;
+    data = (Thread_data *) thread_arg;
+
+    int resultant = 0;
+    int i;
+    for (i = 0; i < data->num_of_multiplications; i++) {
+        resultant += data->matrix_row_elements[i] * data->matrix_col_elements[i];
+    }
+    int *returned_resultant = (int*) malloc(sizeof(int));
+
+    *returned_resultant = resultant;
+    pthread_exit(returned_resultant);
 }
 
 void print_matrix(Matrix mat) {
@@ -47,29 +63,67 @@ Matrix read_matrix_from_file(FILE *fp) {
     return mat;
 }
 
-void normal_matrix_multiply(int ** matrix1, int ** matrix2, int row1, int col1, int row2, int col2) {
-    if (row1 != col2) {
-        printf("Inconsistent dimensions of the matrices\n");
-        return;
+void write_to_matrix_file(Matrix matrix, float time, int num) {
+    FILE *fp;
+    fp = fopen("output-matrix.txt", "a+");
+    int i, j;
+    for (i = 0; i < matrix.row; i++) {
+        for (j = 0; j < matrix.col; j++) {
+            fprintf(fp, "%d ", matrix.array[i][j]);
+        }
+        fprintf(fp, "\n");
     }
-    
-    // int num_threads = row * col;
-    // pthread_t threads[num_threads];
-    // int *taskids[num_threads];
-    // int rc,i;
-    // for (i = 0; i < num_threads; i++) {
-    //     printf("Creating thread %d\n", i);
-    //     rc = pthread_create(&threads[i], NULL, mult_two_numbers, (void *) &arr);
-    //     if (rc) {
-    //         printf("ERROR; return code from pthread_create() is %d\n", rc);
-    //         exit(-1);
-    //     }
-    // }
-    // pthread_exit(NULL);
+    fprintf(fp, "END%d\t %f ms", num, time);
+    fclose(fp);
 }
+
+Matrix thread_per_output_element_matmul(Matrix matrix1, Matrix matrix2) {
+    if (matrix1.col != matrix2.row) {
+        printf("Inconsistent dimensions of the matrices\n");
+        exit(1);
+    }
+    Matrix mult_matrix;
+    mult_matrix.row = matrix1.row;
+    mult_matrix.col = matrix2.col;
+    mult_matrix.array = allocate_Matrix_array(mult_matrix.row, mult_matrix.col);
+    
+    int num_threads = mult_matrix.row * mult_matrix.col;
+    pthread_t *threads;
+    threads = (pthread_t *) malloc(num_threads * sizeof(pthread_t));
+
+    int count = 0;
+    Thread_data data[num_threads];
+    int i, j, k;
+    for (i = 0; i < mult_matrix.row; i++) {
+        for (j = 0; j < mult_matrix.col; j++) {
+            data[count].matrix_row_elements = (int *) malloc(mult_matrix.row*sizeof(int));
+            data[count].matrix_col_elements = (int *) malloc(mult_matrix.col*sizeof(int));
+            data[count].num_of_multiplications = matrix1.col;
+
+            for (k = 0; k < matrix1.col; k++)
+                data[count].matrix_row_elements[k] = matrix1.array[i][k];
+
+            for (k = 0; k < matrix2.row; k++)
+                data[count].matrix_col_elements[k] = matrix2.array[k][j];
+
+            pthread_create(&threads[count], NULL, mult_to_get_one_output_element, (void*) &data[count]);
+            count++;
+        }
+    }
+    count = 0;
+    for (i = 0; i < mult_matrix.row; i++) {
+        for (j = 0; j < mult_matrix.col; j++) {
+            void *thread_ret_val;
+            pthread_join(threads[count++], &thread_ret_val);
+            int * temp = (int *) thread_ret_val;
+            mult_matrix.array[i][j] = *temp;
+        }
+    }
+    return mult_matrix;
+}
+
 int main() {
 
-    int row1, col1, row2, col2;
     FILE * fp;
     fp = fopen("input-matrix.txt", "r");
     Matrix matrix1 = read_matrix_from_file(fp);
@@ -77,8 +131,15 @@ int main() {
     fclose(fp);
     print_matrix(matrix1);
     print_matrix(matrix2);
-    printf("%d %d\n", matrix1.row, matrix1.col);
-    printf("%d %d\n", matrix2.row, matrix2.col);
-    // normal_matrix_multiply(matrix1, matrix2, row1, col1, row2, col2);
+
+    clock_t start_t, end_t;
+    start_t = clock();
+    Matrix matrix3 = thread_per_output_element_matmul(matrix1, matrix2);
+    end_t = clock();
+
+    print_matrix(matrix3);
+    float total_time = (float)(end_t - start_t) / CLOCKS_PER_SEC * 1000;
+    write_to_matrix_file(matrix3, total_time, 1);
+
     return 0;
 }
