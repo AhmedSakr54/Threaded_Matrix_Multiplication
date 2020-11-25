@@ -2,24 +2,30 @@
 #include <stdlib.h>
 #include <pthread.h>
 
+typedef struct Matrix {
+    int ** array;
+    int row;
+    int col;
+}Matrix;
+
 void *mult_two_numbers(void *thread_arg) {
     int * matrix_nums = (int *) thread_arg;
     printf("%d\n" ,matrix_nums[0]*matrix_nums[1]);
     pthread_exit(NULL);
 }
 
-void print_matrix(int** array, int n, int m) {
+void print_matrix(Matrix mat) {
     int i, j;
-    for (i = 0; i < n; i++) {
-        for (j = 0; j < m; j++) {
-            printf("%d ", array[i][j]);
+    for (i = 0; i < mat.row; i++) {
+        for (j = 0; j < mat.col; j++) {
+            printf("%d ", mat.array[i][j]);
         }
         printf("\n");
     }
-    printf("===================\n");
+    printf("========================\n");
 }
 
-int ** allocate_matrix(int n, int m) {
+int ** allocate_Matrix_array(int n, int m) {
     int i, j;
     int ** returned_matrix = (int **) malloc(n * sizeof(int *));
     for (i = 0; i < n; i++) {
@@ -28,31 +34,25 @@ int ** allocate_matrix(int n, int m) {
     return returned_matrix;
 }
 
-int ** read_matrix_from_file(FILE *fp, int *row, int *col) {
-    int temp_row, temp_col;
-    fscanf(fp, "%d %d", &temp_row, &temp_col);
+Matrix read_matrix_from_file(FILE *fp) {
+    Matrix mat;
+    fscanf(fp, "%d %d", &mat.row, &mat.col);
     int i, j;
-    int **matrix = allocate_matrix(temp_row, temp_col);
-    for (i = 0; i < temp_row; i++) {
-        for (j = 0; j < temp_col; j++) {
-            fscanf(fp, "%d", &matrix[i][j]);
+    mat.array = allocate_Matrix_array(mat.row, mat.col);
+    for (i = 0; i < mat.row; i++) {
+        for (j = 0; j < mat.col; j++) {
+            fscanf(fp, "%d", &mat.array[i][j]);
         }
     }
-    *row = temp_row;
-    *col = temp_col;
-    return matrix;
+    return mat;
 }
 
-int main() {
-
-    int row1, col1, row2, col2;
-    FILE * fp;
-    fp = fopen("input-matrix.txt", "r");
-    int **matrix1 = read_matrix_from_file(fp, &row1, &col1);
-    int **matrix2 = read_matrix_from_file(fp, &row2, &col2);
-    fclose(fp);
-
-
+void normal_matrix_multiply(int ** matrix1, int ** matrix2, int row1, int col1, int row2, int col2) {
+    if (row1 != col2) {
+        printf("Inconsistent dimensions of the matrices\n");
+        return;
+    }
+    
     // int num_threads = row * col;
     // pthread_t threads[num_threads];
     // int *taskids[num_threads];
@@ -66,5 +66,19 @@ int main() {
     //     }
     // }
     // pthread_exit(NULL);
+}
+int main() {
+
+    int row1, col1, row2, col2;
+    FILE * fp;
+    fp = fopen("input-matrix.txt", "r");
+    Matrix matrix1 = read_matrix_from_file(fp);
+    Matrix matrix2 = read_matrix_from_file(fp);
+    fclose(fp);
+    print_matrix(matrix1);
+    print_matrix(matrix2);
+    printf("%d %d\n", matrix1.row, matrix1.col);
+    printf("%d %d\n", matrix2.row, matrix2.col);
+    // normal_matrix_multiply(matrix1, matrix2, row1, col1, row2, col2);
     return 0;
 }
