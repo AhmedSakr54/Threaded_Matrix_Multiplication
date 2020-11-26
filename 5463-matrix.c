@@ -132,12 +132,13 @@ Matrix thread_per_output_element_matmul(Matrix matrix1, Matrix matrix2) {
     int i, j, k;
     for (i = 0; i < mult_matrix.row; i++) {
         for (j = 0; j < mult_matrix.col; j++) {
-            data[count].matrix_row_elements = (int *) malloc(mult_matrix.row*sizeof(int));
+            // data[count].matrix_row_elements = (int *) malloc(mult_matrix.row*sizeof(int));
             data[count].matrix_col_elements = (int *) malloc(mult_matrix.col*sizeof(int));
+            data[count].matrix_row_elements = matrix1.array[i];
             data[count].num_of_multiplications = matrix1.col;
 
-            for (k = 0; k < matrix1.col; k++)
-                data[count].matrix_row_elements[k] = matrix1.array[i][k];
+            // for (k = 0; k < matrix1.col; k++)
+            //     data[count].matrix_row_elements[k] = matrix1.array[i][k];
 
             for (k = 0; k < matrix2.row; k++)
                 data[count].matrix_col_elements[k] = matrix2.array[k][j];
@@ -174,12 +175,13 @@ Matrix thread_pre_output_row_matmul(Matrix matrix1, Matrix matrix2) {
     for (i = 0; i < mult_matrix.row; i++) {
         data[count].array2 = matrix2.array;
 
-        data[count].array1_row_elements = (int *) malloc(mult_matrix.row*sizeof(int));
+        // data[count].array1_row_elements = (int *) malloc(mult_matrix.row*sizeof(int));
         data[count].num_rows = matrix2.col;
         data[count].num_cols = matrix1.col;
 
-        for (k = 0; k < matrix1.col; k++)  
-            data[count].array1_row_elements[k] = matrix1.array[i][k];
+        data[count].array1_row_elements = matrix1.array[i];
+        // for (k = 0; k < matrix1.col; k++)  
+        //     data[count].array1_row_elements[k] = matrix1.array[i][k];
     
         pthread_create(&threads[count], NULL, mult_to_get_row_output_elements, (void*) &data[count]);
         count++;
@@ -198,15 +200,16 @@ Matrix thread_pre_output_row_matmul(Matrix matrix1, Matrix matrix2) {
     return mult_matrix;
 }
 
-int main() {
+float get_elapsed_time(clock_t start, clock_t end) {
+    return (float) (end - start) / CLOCKS_PER_SEC * 1000;
+}
 
+void test_threading_techniques_in_matmul() {
     FILE * fp;
     fp = fopen("input-matrix.txt", "r");
     Matrix matrix1 = read_matrix_from_file(fp);
     Matrix matrix2 = read_matrix_from_file(fp);
     fclose(fp);
-    print_matrix(matrix1);
-    print_matrix(matrix2);
 
     FILE *fp1;
     fp1 = fopen("output-matrix.txt", "w");
@@ -214,17 +217,22 @@ int main() {
     start_t = clock();
     Matrix matrix3 = thread_per_output_element_matmul(matrix1, matrix2);
     end_t = clock();
-    print_matrix(matrix3);
-    float total_time = (float)(end_t - start_t) / CLOCKS_PER_SEC * 1000;
+
+    float total_time = get_elapsed_time(start_t, end_t);
     write_to_matrix_file(matrix3, total_time, 1, fp1);
     destory_matrix(matrix3);
     start_t = clock();
     Matrix matrix4 = thread_pre_output_row_matmul(matrix1, matrix2);
     end_t = clock();
-    total_time = (float)(end_t - start_t) / CLOCKS_PER_SEC * 1000;
-    print_matrix(matrix4);
+    total_time = get_elapsed_time(start_t, end_t);
     write_to_matrix_file(matrix4, total_time, 2, fp1);
     destory_matrix(matrix4);
     fclose(fp1);
+}
+
+int main() {
+
+    test_threading_techniques_in_matmul();
+
     return 0;
 }
