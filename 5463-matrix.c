@@ -64,17 +64,6 @@ void *mult_to_get_row_output_elements(void *thread_arg) {
     pthread_exit(row_results);
 }
 
-void print_matrix(Matrix mat) {
-    int i, j;
-    for (i = 0; i < mat.row; i++) {
-        for (j = 0; j < mat.col; j++) {
-            printf("%d ", mat.array[i][j]);
-        }
-        printf("\n");
-    }
-    printf("========================\n");
-}
-
 int ** allocate_Matrix_array(int n, int m) {
     int i, j;
     int ** returned_matrix = (int **) malloc(n * sizeof(int *));
